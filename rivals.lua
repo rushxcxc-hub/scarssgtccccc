@@ -251,10 +251,11 @@ function updateESP()
                         -- Update box
                         local top = Camera:WorldToScreenPoint(rootPart.Position + Vector3.new(0, size.Y/2, 0))
                         local bottom = Camera:WorldToScreenPoint(rootPart.Position - Vector3.new(0, size.Y/2, 0))
-                        local width = (top.Y - bottom.Y) * (size.X / size.Y)
+                        local height = bottom.Y - top.Y
+                        local width = height * (size.X / size.Y)
                         
-                        box.Size = Vector2.new(width, top.Y - bottom.Y)
-                        box.Position = Vector2.new(bottom.X - width/2, bottom.Y)
+                        box.Size = Vector2.new(width, height)
+                        box.Position = Vector2.new(pos.X - width/2, top.Y)
                         box.Visible = true
                         
                         -- Update tracer
