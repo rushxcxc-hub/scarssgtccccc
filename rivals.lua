@@ -131,7 +131,6 @@ end
 function triggerbot()
     if not triggerbotEnabled then return end
     
-    local mouse = UserInputService:GetMouse()
     local closestPlayer = getClosestPlayer()
     
     if closestPlayer and closestPlayer.Character and closestPlayer.Character:FindFirstChild(aimbotPart) then
@@ -192,7 +191,6 @@ function ragebot()
         Camera.CFrame = lookAt
         
         -- Auto shoot
-        local mouse = UserInputService:GetMouse()
         mouse1press()
         wait(ragebotDelay)
         mouse1release()
@@ -288,7 +286,7 @@ function updateESP()
     
     -- Clean up ESP for players who left
     for player, _ in pairs(espBoxes) do
-        if not Players:FindPlayer(player.Name) then
+        if not Players:FindFirstChild(player.Name) then
             espBoxes[player]:Remove()
             espTracers[player]:Remove()
             espNames[player]:Remove()
@@ -306,6 +304,7 @@ function getAllSkins()
     
     -- Try to find skin containers in the game
     local skinContainers = {}
+    allSkins = {}
     
     -- Check player backpack for skins
     local backpack = LocalPlayer:FindFirstChild("Backpack")
@@ -537,8 +536,8 @@ local Window = Rayfield:CreateWindow({
 -- Combat Tab
 local CombatTab = Window:CreateTab("Combat", 4483362458)
 
-local AimbotSection = CombatTab:CreateSection("Aimbot")
-AimbotSection:CreateToggle({
+CombatTab:CreateSection("Aimbot")
+CombatTab:CreateToggle({
     Name = "Enable Aimbot",
     CurrentValue = false,
     Flag = "Aimbot",
@@ -548,7 +547,7 @@ AimbotSection:CreateToggle({
     end
 })
 
-AimbotSection:CreateSlider({
+CombatTab:CreateSlider({
     Name = "Aimbot FOV",
     Range = {1, 500},
     Increment = 1,
@@ -561,7 +560,7 @@ AimbotSection:CreateSlider({
     end
 })
 
-AimbotSection:CreateSlider({
+CombatTab:CreateSlider({
     Name = "Aimbot Smoothness",
     Range = {0.05, 1},
     Increment = 0.05,
@@ -573,7 +572,7 @@ AimbotSection:CreateSlider({
     end
 })
 
-AimbotSection:CreateDropdown({
+CombatTab:CreateDropdown({
     Name = "Aim Part",
     Options = {"Head", "UpperTorso", "HumanoidRootPart", "LowerTorso"},
     CurrentOption = "Head",
@@ -583,8 +582,8 @@ AimbotSection:CreateDropdown({
     end
 })
 
-local SilentAimSection = CombatTab:CreateSection("Silent Aim")
-SilentAimSection:CreateToggle({
+CombatTab:CreateSection("Silent Aim")
+CombatTab:CreateToggle({
     Name = "Enable Silent Aim",
     CurrentValue = false,
     Flag = "SilentAim",
@@ -593,8 +592,8 @@ SilentAimSection:CreateToggle({
     end
 })
 
-local TriggerbotSection = CombatTab:CreateSection("Triggerbot")
-TriggerbotSection:CreateToggle({
+CombatTab:CreateSection("Triggerbot")
+CombatTab:CreateToggle({
     Name = "Enable Triggerbot",
     CurrentValue = false,
     Flag = "Triggerbot",
@@ -603,7 +602,7 @@ TriggerbotSection:CreateToggle({
     end
 })
 
-TriggerbotSection:CreateSlider({
+CombatTab:CreateSlider({
     Name = "Triggerbot Delay",
     Range = {0.01, 0.5},
     Increment = 0.01,
@@ -615,8 +614,8 @@ TriggerbotSection:CreateSlider({
     end
 })
 
-local RagebotSection = CombatTab:CreateSection("Ragebot")
-RagebotSection:CreateToggle({
+CombatTab:CreateSection("Ragebot")
+CombatTab:CreateToggle({
     Name = "Enable Ragebot",
     CurrentValue = false,
     Flag = "Ragebot",
@@ -625,7 +624,7 @@ RagebotSection:CreateToggle({
     end
 })
 
-RagebotSection:CreateSlider({
+CombatTab:CreateSlider({
     Name = "Ragebot Delay",
     Range = {0.01, 0.5},
     Increment = 0.01,
@@ -640,8 +639,8 @@ RagebotSection:CreateSlider({
 -- Visual Tab
 local VisualTab = Window:CreateTab("Visual", 4483362458)
 
-local ESPSection = VisualTab:CreateSection("ESP")
-ESPSection:CreateToggle({
+VisualTab:CreateSection("ESP")
+VisualTab:CreateToggle({
     Name = "Enable ESP",
     CurrentValue = false,
     Flag = "ESP",
@@ -650,8 +649,8 @@ ESPSection:CreateToggle({
     end
 })
 
-local SkinChangerSection = VisualTab:CreateSection("Skin Changer")
-SkinChangerSection:CreateToggle({
+VisualTab:CreateSection("Skin Changer")
+VisualTab:CreateToggle({
     Name = "Enable Skin Changer",
     CurrentValue = false,
     Flag = "SkinChanger",
@@ -663,14 +662,14 @@ SkinChangerSection:CreateToggle({
     end
 })
 
-SkinChangerSection:CreateButton({
+VisualTab:CreateButton({
     Name = "Unlock All Skins",
     Callback = function()
         unlockAllSkins()
     end
 })
 
-SkinChangerSection:CreateDropdown({
+VisualTab:CreateDropdown({
     Name = "Select Skin",
     Options = {"Default", "Skin 1", "Skin 2", "Skin 3", "Skin 4", "Skin 5"},
     CurrentOption = "Default",
@@ -685,8 +684,8 @@ SkinChangerSection:CreateDropdown({
 -- Movement Tab
 local MovementTab = Window:CreateTab("Movement", 4483362458)
 
-local FlySection = MovementTab:CreateSection("Fly")
-FlySection:CreateToggle({
+MovementTab:CreateSection("Fly")
+MovementTab:CreateToggle({
     Name = "Enable Fly",
     CurrentValue = false,
     Flag = "Fly",
@@ -695,7 +694,7 @@ FlySection:CreateToggle({
     end
 })
 
-FlySection:CreateSlider({
+MovementTab:CreateSlider({
     Name = "Fly Speed",
     Range = {10, 200},
     Increment = 5,
@@ -710,8 +709,8 @@ FlySection:CreateSlider({
 -- AI Tab
 local AITab = Window:CreateTab("AI", 4483362458)
 
-local AISection = AITab:CreateSection("AI Detection")
-AISection:CreateToggle({
+AITab:CreateSection("AI Detection")
+AITab:CreateToggle({
     Name = "Enable AI Detection",
     CurrentValue = false,
     Flag = "AIDetection",
@@ -723,7 +722,7 @@ AISection:CreateToggle({
     end
 })
 
-AISection:CreateSlider({
+AITab:CreateSlider({
     Name = "AI Confidence Threshold",
     Range = {0.1, 1},
     Increment = 0.05,
@@ -738,8 +737,8 @@ AISection:CreateSlider({
 -- Settings Tab
 local SettingsTab = Window:CreateTab("Settings", 4483362458)
 
-local GeneralSection = SettingsTab:CreateSection("General")
-GeneralSection:CreateToggle({
+SettingsTab:CreateSection("General")
+SettingsTab:CreateToggle({
     Name = "Wall Check",
     CurrentValue = true,
     Flag = "WallCheck",
@@ -748,7 +747,7 @@ GeneralSection:CreateToggle({
     end
 })
 
-GeneralSection:CreateToggle({
+SettingsTab:CreateToggle({
     Name = "Team Check",
     CurrentValue = false,
     Flag = "TeamCheck",
@@ -757,7 +756,7 @@ GeneralSection:CreateToggle({
     end
 })
 
-GeneralSection:CreateButton({
+SettingsTab:CreateButton({
     Name = "Destroy Script",
     Callback = function()
         Rayfield:Destroy()
