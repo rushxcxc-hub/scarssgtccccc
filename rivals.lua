@@ -54,7 +54,7 @@ function getClosestPlayer()
     local shortestDistance = math.huge
     
     for _, player in pairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer and (not teamCheck or player.Team ~= LocalPlayer.Team) then
+        if player ~= LocalPlayer and (not teamCheck or LocalPlayer.Team == nil or player.Team ~= LocalPlayer.Team) then
             local character = player.Character
             if character and character:FindFirstChild(aimbotPart) then
                 local part = character[aimbotPart]
@@ -81,16 +81,21 @@ function isWallBetween(target)
     if not character or not character:FindFirstChild("HumanoidRootPart") then return false end
     
     local origin = character.HumanoidRootPart.Position
-    local direction = (target.Position - origin).unit * 1000
-    local ray = Ray.new(origin, direction)
+    local direction = (target.Position - origin).Unit * 1000
     
-    local hit, position = workspace:FindPartOnRay(ray, character)
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterDescendantsInstances = {character}
+    raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+    local result = workspace:Raycast(origin, direction, raycastParams)
     
-    if hit and hit:IsDescendantOf(target.Parent) then
-        return false
+    if result then
+        if result.Instance:IsDescendantOf(target.Parent) then
+            return false
+        end
+        return true
     end
     
-    return true
+    return false
 end
 
 function aimbot()
@@ -232,7 +237,7 @@ function updateESP()
     end
     
     for _, player in pairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer and (not teamCheck or player.Team ~= LocalPlayer.Team) then
+        if player ~= LocalPlayer and (not teamCheck or LocalPlayer.Team == nil or player.Team ~= LocalPlayer.Team) then
             local character = player.Character
             if character and character:FindFirstChild("HumanoidRootPart") then
                 local humanoid = character:FindFirstChildOfClass("Humanoid")
@@ -265,7 +270,7 @@ function updateESP()
                         
                         -- Update name
                         name.Text = player.Name .. " [" .. math.floor(humanoid.Health) .. "/" .. humanoid.MaxHealth .. "]"
-                        name.Position = Vector2.new(bottom.X, top.Y - 15)
+                        name.Position = Vector2.new(pos.X, top.Y - 15)
                         name.Visible = true
                     else
                         espBoxes[player].Visible = false
@@ -349,8 +354,8 @@ function getAllSkins()
 end
 
 function unlockAllSkins()
-    -- This would need to be customized based on the specific game's skin system
-    -- For now, we'll create a placeholder function
+    -- Ensure skins list is populated before attempting to unlock
+    allSkins = getAllSkins()
     
     -- Try to find and modify skin ownership data
     local playerData = LocalPlayer:FindFirstChild("Data") or LocalPlayer:FindFirstChild("PlayerData")
@@ -362,9 +367,9 @@ function unlockAllSkins()
         end
     end
     
-    -- Try to find and modify skin purchase functions
+    -- Try to find and modify skin purchase functions (search all descendants)
     local replicatedStorage = game:GetService("ReplicatedStorage")
-    for _, remote in pairs(replicatedStorage:GetChildren()) do
+    for _, remote in pairs(replicatedStorage:GetDescendants()) do
         if remote:IsA("RemoteEvent") or remote:IsA("RemoteFunction") then
             if remote.Name:find("Buy") or remote.Name:find("Purchase") or remote.Name:find("Unlock") then
                 -- Try to call the remote with skin data
@@ -437,7 +442,7 @@ function initializeAIModel()
             
             -- Check for players in the game
             for _, player in pairs(Players:GetPlayers()) do
-                if player ~= LocalPlayer and (not teamCheck or player.Team ~= LocalPlayer.Team) then
+                if player ~= LocalPlayer and (not teamCheck or LocalPlayer.Team == nil or player.Team ~= LocalPlayer.Team) then
                     local character = player.Character
                     if character and character:FindFirstChild("HumanoidRootPart") then
                         local humanoid = character:FindFirstChildOfClass("Humanoid")
