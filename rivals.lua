@@ -28,7 +28,6 @@ local wallCheck = true
 local teamCheck = false
 local currentCombatTarget = nil
 local autoFireReleaseAt = 0
-local autoFireCooldownUntil = 0
 local autoFireActive = false
 local fovCircle = Drawing.new("Circle")
 fovCircle.Visible = false
@@ -75,7 +74,9 @@ function getClosestTargetData()
             local hrp = character and character:FindFirstChild("HumanoidRootPart")
             if humanoid and humanoid.Health > 0 and part and hrp then
                 local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
-                local distance = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
+                local deltaX = screenPos.X - screenCenter.X
+                local deltaY = screenPos.Y - screenCenter.Y
+                local distance = math.sqrt(deltaX * deltaX + deltaY * deltaY)
                 
                 if onScreen and distance < shortestDistance and distance < aimbotFOV then
                     if not wallCheck or not isWallBetween(part) then
@@ -159,12 +160,11 @@ end
 
 function requestAutoFire(delay)
     local now = tick()
-    if autoFireActive or now < autoFireCooldownUntil then return false end
+    if autoFireActive then return false end
 
     mouse1press()
     autoFireActive = true
     autoFireReleaseAt = now + delay
-    autoFireCooldownUntil = autoFireReleaseAt
     return true
 end
 
