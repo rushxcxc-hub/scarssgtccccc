@@ -102,25 +102,24 @@ end
 function isWallBetween(target)
     if not wallCheck then return false end
     
-    local character = LocalPlayer.Character
-    if not character or not character:FindFirstChild("HumanoidRootPart") then return false end
-    
     local origin = Camera.CFrame.Position
-    local direction = (target.Position - origin).Unit * 1000
-    
+    local targetPos = target.Position
+    local dist = (targetPos - origin).Magnitude
+    if dist < 1 then return false end
+
     local raycastParams = RaycastParams.new()
-    raycastParams.FilterDescendantsInstances = {character}
-    raycastParams.FilterType = Enum.RaycastFilterType.Exclude
-    local result = workspace:Raycast(origin, direction, raycastParams)
-    
-    if result then
-        if result.Instance:IsDescendantOf(target.Parent) then
-            return false
+    local excluded = {}
+    for _, player in pairs(Players:GetPlayers()) do
+        if player.Character then
+            table.insert(excluded, player.Character)
         end
-        return true
     end
-    
-    return false
+    raycastParams.FilterDescendantsInstances = excluded
+    raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+    -- Cast ray slightly shorter than target distance so only map geometry counts as a wall
+    local result = workspace:Raycast(origin, (targetPos - origin).Unit * (dist - 1), raycastParams)
+
+    return result ~= nil
 end
 
 function aimbot(targetData)
@@ -752,12 +751,13 @@ SettingsTab:CreateButton({
 -- Update FOV Circle
 RunService.Heartbeat:Connect(function()
     if aimbotEnabled then
-        fovCircle.Position = UserInputService:GetMouseLocation()
+        local viewport = Camera.ViewportSize
+        fovCircle.Position = Vector2.new(viewport.X / 2, viewport.Y / 2)
     end
 end)
 
--- Main Update Loop
-RunService.RenderStepped:Connect(function()
+-- Main Update Loop (runs after the game's camera script to ensure our CFrame changes persist)
+RunService:BindToRenderStep("RivalsMain", Enum.RenderPriority.Camera.Value + 1, function()
     currentCombatTarget = nil
     if aimbotEnabled or silentAimEnabled or triggerbotEnabled or ragebotEnabled then
         currentCombatTarget = getClosestTargetData()
