@@ -36,11 +36,9 @@ fovCircle.Radius = aimbotFOV
 
 -- Chams (Highlight ESP) Variables
 local espHighlights = {}
-local espNames = {}
 local chamsColor = Color3.fromRGB(255, 0, 0)
 local chamsOutlineColor = Color3.fromRGB(255, 255, 255)
 local chamsFillTransparency = 0.5
-local chamsShowNames = true
 
 -- Skin Changer Variables
 local allSkins = {}
@@ -110,20 +108,23 @@ end
 
 function aimbot()
     if not aimbotEnabled then return end
-    
+
     local closestPlayer = getClosestPlayer()
-    if closestPlayer and closestPlayer.Character and closestPlayer.Character:FindFirstChild(aimbotPart) then
-        local targetPart = closestPlayer.Character[aimbotPart]
-        local targetPos = Camera:WorldToScreenPoint(targetPart.Position)
-        
-        if targetPos.Z > 0 then
-            local mousePos = UserInputService:GetMouseLocation()
-            local targetX = targetPos.X - mousePos.X
-            local targetY = targetPos.Y - mousePos.Y
-            
-            mousemoverel(targetX * aimbotSmoothness, targetY * aimbotSmoothness)
-        end
-    end
+    if not closestPlayer or not closestPlayer.Character then return end
+    local character = closestPlayer.Character
+    local targetPart = character:FindFirstChild(aimbotPart)
+    if not targetPart then return end
+
+    -- Velocity-based prediction for leading the target
+    local hrp = character:FindFirstChild("HumanoidRootPart")
+    local velocity = hrp and hrp.AssemblyLinearVelocity or Vector3.new()
+    local dist = (Camera.CFrame.Position - targetPart.Position).Magnitude
+    local predTime = dist / 800
+    local predicted = targetPart.Position + velocity * predTime
+
+    -- Smoothly rotate the camera toward the predicted position
+    local goalCF = CFrame.new(Camera.CFrame.Position, predicted)
+    Camera.CFrame = Camera.CFrame:Lerp(goalCF, aimbotSmoothness)
 end
 
 function silentAim()
@@ -223,21 +224,12 @@ function createESP(player)
     highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
     highlight.Enabled = false
 
-    local name = Drawing.new("Text")
-    name.Color = Color3.new(1, 1, 1)
-    name.Size = 14
-    name.Center = true
-    name.Outline = true
-    name.Visible = false
-
     espHighlights[player] = highlight
-    espNames[player] = name
 end
 
 function updateESP()
     if not espEnabled then
         for _, highlight in pairs(espHighlights) do highlight.Enabled = false end
-        for _, name in pairs(espNames) do name.Visible = false end
         return
     end
 
@@ -258,30 +250,11 @@ function updateESP()
                     highlight.OutlineColor = chamsOutlineColor
                     highlight.FillTransparency = chamsFillTransparency
                     highlight.Enabled = true
-
-                    -- Update floating name label
-                    local hrp = character:FindFirstChild("HumanoidRootPart")
-                    local pos, onScreen = Camera:WorldToScreenPoint(hrp.Position)
-                    local name = espNames[player]
-
-                    if onScreen and chamsShowNames then
-                        local bbCF, size = character:GetBoundingBox()
-                        local bbCenter = bbCF.Position
-                        local top = Camera:WorldToScreenPoint(bbCenter + Vector3.new(0, size.Y / 2, 0))
-
-                        name.Text = player.Name .. " [" .. math.floor(humanoid.Health) .. "/" .. humanoid.MaxHealth .. "]"
-                        name.Position = Vector2.new(pos.X, top.Y - 15)
-                        name.Visible = true
-                    else
-                        name.Visible = false
-                    end
                 else
                     if espHighlights[player] then espHighlights[player].Enabled = false end
-                    if espNames[player] then espNames[player].Visible = false end
                 end
             else
                 if espHighlights[player] then espHighlights[player].Enabled = false end
-                if espNames[player] then espNames[player].Visible = false end
             end
         end
     end
@@ -290,9 +263,7 @@ function updateESP()
     for player, _ in pairs(espHighlights) do
         if not Players:FindFirstChild(player.Name) then
             espHighlights[player]:Destroy()
-            espNames[player]:Remove()
             espHighlights[player] = nil
-            espNames[player] = nil
         end
     end
 end
@@ -421,103 +392,60 @@ function changeSkin(skinName)
     end
 end
 
--- AI Detection Functions (YOLO-like implementation)
+-- AI Detection Functions
 function initializeAIModel()
-    -- This is a simplified version of YOLO-like detection
-    -- In a real implementation, you would load a trained model
-    
-    -- For demonstration, we'll create a simple detection function
-    aiModel = {
-        Detect = function(image)
-            -- This would normally use a neural network to detect players
-            -- For now, we'll return placeholder results
-            
-            local detections = {}
-            
-            -- Check for players in the game
-            for _, player in pairs(Players:GetPlayers()) do
-                if player ~= LocalPlayer and isEnemy(player) then
-                    local character = player.Character
-                    if character and character:FindFirstChild("HumanoidRootPart") then
-                        local humanoid = character:FindFirstChildOfClass("Humanoid")
-                        if humanoid and humanoid.Health > 0 then
-                            local rootPart = character.HumanoidRootPart
-                            local pos, onScreen = Camera:WorldToScreenPoint(rootPart.Position)
-                            
-                            if onScreen then
-                                table.insert(detections, {
-                                    Class = "Player",
-                                    Confidence = 0.9,
-                                    Box = {
-                                        X = pos.X - 50,
-                                        Y = pos.Y - 100,
-                                        Width = 100,
-                                        Height = 200
-                                    },
-                                    Player = player
-                                })
+    -- Mark AI as ready; actual detection uses direct game data
+    aiModel = true
+    return aiModel
+end
+
+function aiAimbot()
+    if not aiDetectionEnabled then return end
+
+    local viewport = Camera.ViewportSize
+    local center = Vector2.new(viewport.X / 2, viewport.Y / 2)
+    local bestTarget = nil
+    local bestScore = -math.huge
+
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and isEnemy(player) then
+            local character = player.Character
+            if character then
+                local humanoid = character:FindFirstChildOfClass("Humanoid")
+                local head = character:FindFirstChild("Head")
+                local hrp = character:FindFirstChild("HumanoidRootPart")
+
+                if humanoid and humanoid.Health > 0 and head and hrp then
+                    local screenPos, onScreen = Camera:WorldToViewportPoint(head.Position)
+
+                    if onScreen and screenPos.Z > 0 then
+                        local distFromCenter = (Vector2.new(screenPos.X, screenPos.Y) - center).Magnitude
+
+                        if distFromCenter < aimbotFOV and not isWallBetween(head) then
+                            -- Priority: closer to crosshair (70%) + lower health (30%)
+                            local angleScore = 1 - (distFromCenter / aimbotFOV)
+                            local healthScore = 1 - (humanoid.Health / humanoid.MaxHealth)
+                            local score = angleScore * 0.7 + healthScore * 0.3
+
+                            if score > bestScore then
+                                bestScore = score
+                                bestTarget = {head = head, hrp = hrp}
                             end
                         end
                     end
                 end
             end
-            
-            return detections
-        end
-    }
-    
-    return aiModel
-end
-
-function aiAimbot()
-    if not aiDetectionEnabled or not aiModel then return end
-    
-    -- Get current viewport as image data (simplified)
-    local viewport = Camera.ViewportSize
-    local imageData = {
-        Width = viewport.X,
-        Height = viewport.Y
-    }
-    
-    -- Use AI model to detect players
-    local detections = aiModel:Detect(imageData)
-    
-    -- Find the best target
-    local bestTarget = nil
-    local bestScore = 0
-    
-    for _, detection in pairs(detections) do
-        if detection.Class == "Player" and detection.Confidence >= aiConfidence then
-            local box = detection.Box
-            local centerX = box.X + box.Width / 2
-            local centerY = box.Y + box.Height / 2
-            
-            local distance = math.sqrt(
-                math.pow(centerX - viewport.X/2, 2) + 
-                math.pow(centerY - viewport.Y/2, 2)
-            )
-            
-            -- Score based on confidence and distance
-            local score = detection.Confidence * (1 - distance / math.max(viewport.X, viewport.Y))
-            
-            if score > bestScore then
-                bestScore = score
-                bestTarget = detection
-            end
         end
     end
-    
-    -- Aim at the best target
+
     if bestTarget then
-        local box = bestTarget.Box
-        local centerX = box.X + box.Width / 2
-        local centerY = box.Y + box.Height / 2
-        
-        local mousePos = UserInputService:GetMouseLocation()
-        local targetX = centerX - mousePos.X
-        local targetY = centerY - mousePos.Y
-        
-        mousemoverel(targetX * aimbotSmoothness, targetY * aimbotSmoothness)
+        local velocity = bestTarget.hrp.AssemblyLinearVelocity
+        local dist = (Camera.CFrame.Position - bestTarget.head.Position).Magnitude
+        local predTime = dist / 800
+        local predicted = bestTarget.head.Position + velocity * predTime
+
+        local goalCF = CFrame.new(Camera.CFrame.Position, predicted)
+        Camera.CFrame = Camera.CFrame:Lerp(goalCF, aimbotSmoothness)
     end
 end
 
@@ -648,7 +576,6 @@ VisualTab:CreateToggle({
         espEnabled = Value
         if not Value then
             for _, highlight in pairs(espHighlights) do highlight.Enabled = false end
-            for _, name in pairs(espNames) do name.Visible = false end
         end
     end
 })
@@ -680,18 +607,6 @@ VisualTab:CreateSlider({
     Flag = "ChamsFillTransparency",
     Callback = function(Value)
         chamsFillTransparency = Value
-    end
-})
-
-VisualTab:CreateToggle({
-    Name = "Show Player Names",
-    CurrentValue = true,
-    Flag = "ChamsShowNames",
-    Callback = function(Value)
-        chamsShowNames = Value
-        if not Value then
-            for _, name in pairs(espNames) do name.Visible = false end
-        end
     end
 })
 
@@ -762,8 +677,8 @@ AITab:CreateToggle({
     Flag = "AIDetection",
     Callback = function(Value)
         aiDetectionEnabled = Value
-        if Value and not aiModel then
-            aiModel = initializeAIModel()
+        if Value then
+            initializeAIModel()
         end
     end
 })
@@ -841,10 +756,6 @@ Players.PlayerRemoving:Connect(function(player)
     if espHighlights[player] then
         espHighlights[player]:Destroy()
         espHighlights[player] = nil
-    end
-    if espNames[player] then
-        espNames[player]:Remove()
-        espNames[player] = nil
     end
 end)
 
