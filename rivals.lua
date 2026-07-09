@@ -1,5 +1,5 @@
 -- Roblox Rivals Script with Rayfield UI
--- Features: Aimbot, Skin Changer, ESP, Fly, Triggerbot, Ragebot, and more
+-- Features: Aimbot, Skin Changer, Chams (Highlight ESP), Fly, Triggerbot, Ragebot, and more
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local Players = game:GetService("Players")
@@ -34,10 +34,13 @@ fovCircle.Filled = false
 fovCircle.Transparency = 0.5
 fovCircle.Radius = aimbotFOV
 
--- ESP Variables
-local espBoxes = {}
-local espTracers = {}
+-- Chams (Highlight ESP) Variables
+local espHighlights = {}
 local espNames = {}
+local chamsColor = Color3.fromRGB(255, 0, 0)
+local chamsOutlineColor = Color3.fromRGB(255, 255, 255)
+local chamsFillTransparency = 0.5
+local chamsShowNames = true
 
 -- Skin Changer Variables
 local allSkins = {}
@@ -210,39 +213,34 @@ function ragebot()
 end
 
 function createESP(player)
-    if espBoxes[player] then return end
-    
-    local box = Drawing.new("Square")
-    box.Color = Color3.new(1, 0, 0)
-    box.Thickness = 1
-    box.Transparency = 0.5
-    box.Visible = false
-    
-    local tracer = Drawing.new("Line")
-    tracer.Color = Color3.new(1, 0, 0)
-    tracer.Thickness = 1
-    tracer.Transparency = 0.5
-    tracer.Visible = false
-    
+    if espHighlights[player] then return end
+
+    local highlight = Instance.new("Highlight")
+    highlight.FillColor = chamsColor
+    highlight.OutlineColor = chamsOutlineColor
+    highlight.FillTransparency = chamsFillTransparency
+    highlight.OutlineTransparency = 0
+    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    highlight.Enabled = false
+
     local name = Drawing.new("Text")
     name.Color = Color3.new(1, 1, 1)
     name.Size = 14
     name.Center = true
+    name.Outline = true
     name.Visible = false
-    
-    espBoxes[player] = box
-    espTracers[player] = tracer
+
+    espHighlights[player] = highlight
     espNames[player] = name
 end
 
 function updateESP()
     if not espEnabled then
-        for _, box in pairs(espBoxes) do box.Visible = false end
-        for _, tracer in pairs(espTracers) do tracer.Visible = false end
+        for _, highlight in pairs(espHighlights) do highlight.Enabled = false end
         for _, name in pairs(espNames) do name.Visible = false end
         return
     end
-    
+
     for _, player in pairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and isEnemy(player) then
             local character = player.Character
@@ -250,63 +248,50 @@ function updateESP()
                 local humanoid = character:FindFirstChildOfClass("Humanoid")
                 if humanoid and humanoid.Health > 0 then
                     createESP(player)
-                    
+
+                    local highlight = espHighlights[player]
+                    -- Re-parent highlight into the character whenever it respawns
+                    if highlight.Parent ~= character then
+                        highlight.Parent = character
+                    end
+                    highlight.FillColor = chamsColor
+                    highlight.OutlineColor = chamsOutlineColor
+                    highlight.FillTransparency = chamsFillTransparency
+                    highlight.Enabled = true
+
+                    -- Update floating name label
                     local hrp = character:FindFirstChild("HumanoidRootPart")
-                    local bbCF, size = character:GetBoundingBox()
-                    local bbCenter = bbCF.Position
-                    -- Use HRP for horizontal center (unaffected by accessories/weapons that skew the bounding box)
                     local pos, onScreen = Camera:WorldToScreenPoint(hrp.Position)
-                    
-                    if onScreen then
-                        local box = espBoxes[player]
-                        local tracer = espTracers[player]
-                        local name = espNames[player]
-                        
-                        -- Update box using bounding box for vertical extent
-                        local top = Camera:WorldToScreenPoint(bbCenter + Vector3.new(0, size.Y/2, 0))
-                        local bottom = Camera:WorldToScreenPoint(bbCenter - Vector3.new(0, size.Y/2, 0))
-                        local height = bottom.Y - top.Y
-                        local width = height * (size.X / size.Y)
-                        
-                        box.Size = Vector2.new(width, height)
-                        box.Position = Vector2.new(pos.X - width/2, top.Y)
-                        box.Visible = true
-                        
-                        -- Update tracer; use pos.X (HRP screen center) to avoid perspective X drift
-                        tracer.From = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y)
-                        tracer.To = Vector2.new(pos.X, bottom.Y)
-                        tracer.Visible = true
-                        
-                        -- Update name
+                    local name = espNames[player]
+
+                    if onScreen and chamsShowNames then
+                        local bbCF, size = character:GetBoundingBox()
+                        local bbCenter = bbCF.Position
+                        local top = Camera:WorldToScreenPoint(bbCenter + Vector3.new(0, size.Y / 2, 0))
+
                         name.Text = player.Name .. " [" .. math.floor(humanoid.Health) .. "/" .. humanoid.MaxHealth .. "]"
                         name.Position = Vector2.new(pos.X, top.Y - 15)
                         name.Visible = true
                     else
-                        espBoxes[player].Visible = false
-                        espTracers[player].Visible = false
-                        espNames[player].Visible = false
+                        name.Visible = false
                     end
                 else
-                    if espBoxes[player] then espBoxes[player].Visible = false end
-                    if espTracers[player] then espTracers[player].Visible = false end
+                    if espHighlights[player] then espHighlights[player].Enabled = false end
                     if espNames[player] then espNames[player].Visible = false end
                 end
             else
-                if espBoxes[player] then espBoxes[player].Visible = false end
-                if espTracers[player] then espTracers[player].Visible = false end
+                if espHighlights[player] then espHighlights[player].Enabled = false end
                 if espNames[player] then espNames[player].Visible = false end
             end
         end
     end
-    
+
     -- Clean up ESP for players who left
-    for player, _ in pairs(espBoxes) do
+    for player, _ in pairs(espHighlights) do
         if not Players:FindFirstChild(player.Name) then
-            espBoxes[player]:Remove()
-            espTracers[player]:Remove()
+            espHighlights[player]:Destroy()
             espNames[player]:Remove()
-            espBoxes[player] = nil
-            espTracers[player] = nil
+            espHighlights[player] = nil
             espNames[player] = nil
         end
     end
@@ -654,13 +639,59 @@ CombatTab:CreateSlider({
 -- Visual Tab
 local VisualTab = Window:CreateTab("Visual", 4483362458)
 
-VisualTab:CreateSection("ESP")
+VisualTab:CreateSection("Chams")
 VisualTab:CreateToggle({
-    Name = "Enable ESP",
+    Name = "Enable Chams",
     CurrentValue = false,
     Flag = "ESP",
     Callback = function(Value)
         espEnabled = Value
+        if not Value then
+            for _, highlight in pairs(espHighlights) do highlight.Enabled = false end
+            for _, name in pairs(espNames) do name.Visible = false end
+        end
+    end
+})
+
+VisualTab:CreateColorPicker({
+    Name = "Chams Fill Color",
+    Color = Color3.fromRGB(255, 0, 0),
+    Flag = "ChamsFillColor",
+    Callback = function(Value)
+        chamsColor = Value
+    end
+})
+
+VisualTab:CreateColorPicker({
+    Name = "Chams Outline Color",
+    Color = Color3.fromRGB(255, 255, 255),
+    Flag = "ChamsOutlineColor",
+    Callback = function(Value)
+        chamsOutlineColor = Value
+    end
+})
+
+VisualTab:CreateSlider({
+    Name = "Chams Fill Transparency",
+    Range = {0, 1},
+    Increment = 0.05,
+    Suffix = "",
+    CurrentValue = 0.5,
+    Flag = "ChamsFillTransparency",
+    Callback = function(Value)
+        chamsFillTransparency = Value
+    end
+})
+
+VisualTab:CreateToggle({
+    Name = "Show Player Names",
+    CurrentValue = true,
+    Flag = "ChamsShowNames",
+    Callback = function(Value)
+        chamsShowNames = Value
+        if not Value then
+            for _, name in pairs(espNames) do name.Visible = false end
+        end
     end
 })
 
@@ -807,16 +838,16 @@ Players.PlayerAdded:Connect(function(player)
 end)
 
 Players.PlayerRemoving:Connect(function(player)
-    if espBoxes[player] then
-        espBoxes[player]:Remove()
-        espTracers[player]:Remove()
+    if espHighlights[player] then
+        espHighlights[player]:Destroy()
+        espHighlights[player] = nil
+    end
+    if espNames[player] then
         espNames[player]:Remove()
-        espBoxes[player] = nil
-        espTracers[player] = nil
         espNames[player] = nil
     end
 end)
 
 -- Initialize
 print("Roblox Rivals Script loaded successfully!")
-print("Features: Aimbot, Silent Aim, Triggerbot, Ragebot, ESP, Skin Changer, Fly, AI Detection")
+print("Features: Aimbot, Silent Aim, Triggerbot, Ragebot, Chams (Highlight ESP), Skin Changer, Fly, AI Detection")
