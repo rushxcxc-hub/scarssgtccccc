@@ -251,18 +251,20 @@ function updateESP()
                 if humanoid and humanoid.Health > 0 then
                     createESP(player)
                     
+                    local hrp = character:FindFirstChild("HumanoidRootPart")
                     local bbCF, size = character:GetBoundingBox()
-                    local center = bbCF.Position
-                    local pos, onScreen = Camera:WorldToScreenPoint(center)
+                    local bbCenter = bbCF.Position
+                    -- Use HRP for horizontal center (unaffected by accessories/weapons that skew the bounding box)
+                    local pos, onScreen = Camera:WorldToScreenPoint(hrp.Position)
                     
                     if onScreen then
                         local box = espBoxes[player]
                         local tracer = espTracers[player]
                         local name = espNames[player]
                         
-                        -- Update box
-                        local top = Camera:WorldToScreenPoint(center + Vector3.new(0, size.Y/2, 0))
-                        local bottom = Camera:WorldToScreenPoint(center - Vector3.new(0, size.Y/2, 0))
+                        -- Update box using bounding box for vertical extent
+                        local top = Camera:WorldToScreenPoint(bbCenter + Vector3.new(0, size.Y/2, 0))
+                        local bottom = Camera:WorldToScreenPoint(bbCenter - Vector3.new(0, size.Y/2, 0))
                         local height = bottom.Y - top.Y
                         local width = height * (size.X / size.Y)
                         
@@ -270,9 +272,9 @@ function updateESP()
                         box.Position = Vector2.new(pos.X - width/2, top.Y)
                         box.Visible = true
                         
-                        -- Update tracer
+                        -- Update tracer; use pos.X (HRP screen center) to avoid perspective X drift
                         tracer.From = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y)
-                        tracer.To = Vector2.new(bottom.X, bottom.Y)
+                        tracer.To = Vector2.new(pos.X, bottom.Y)
                         tracer.Visible = true
                         
                         -- Update name
