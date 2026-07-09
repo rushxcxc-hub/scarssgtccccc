@@ -29,6 +29,7 @@ local teamCheck = false
 local currentCombatTarget = nil
 local autoFireReleaseAt = 0
 local autoFireActive = false
+local RENDER_STEP_KEY = "RivalsMain"
 local fovCircle = Drawing.new("Circle")
 fovCircle.Visible = false
 fovCircle.Color = Color3.new(1, 0, 0)
@@ -116,8 +117,8 @@ function isWallBetween(target)
     end
     raycastParams.FilterDescendantsInstances = excluded
     raycastParams.FilterType = Enum.RaycastFilterType.Exclude
-    -- Cast ray slightly shorter than target distance so only map geometry counts as a wall
-    local result = workspace:Raycast(origin, (targetPos - origin).Unit * (dist - 1), raycastParams)
+    -- Cast ray to just before the target so only map geometry counts as a wall
+    local result = workspace:Raycast(origin, (targetPos - origin).Unit * (dist * 0.99), raycastParams)
 
     return result ~= nil
 end
@@ -757,7 +758,7 @@ RunService.Heartbeat:Connect(function()
 end)
 
 -- Main Update Loop (runs after the game's camera script to ensure our CFrame changes persist)
-RunService:BindToRenderStep("RivalsMain", Enum.RenderPriority.Camera.Value + 1, function()
+RunService:BindToRenderStep(RENDER_STEP_KEY, Enum.RenderPriority.Camera.Value + 1, function()
     currentCombatTarget = nil
     if aimbotEnabled or silentAimEnabled or triggerbotEnabled or ragebotEnabled then
         currentCombatTarget = getClosestTargetData()
