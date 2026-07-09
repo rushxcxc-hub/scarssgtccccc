@@ -26,6 +26,10 @@ local flySpeed = 50
 local ragebotDelay = 0.05
 local wallCheck = true
 local teamCheck = false
+local currentCombatTarget = nil
+local autoFireReleaseAt = 0
+local autoFireCooldownUntil = 0
+local autoFireActive = false
 local fovCircle = Drawing.new("Circle")
 fovCircle.Visible = false
 fovCircle.Color = Color3.new(1, 0, 0)
@@ -48,6 +52,8 @@ local equippedSkins = {}
 local aiDetectionEnabled = false
 local aiConfidence = 0.7
 local aiModel = nil
+local wallCheckParams = RaycastParams.new()
+wallCheckParams.FilterType = Enum.RaycastFilterType.Exclude
 
 -- Functions
 function isEnemy(player)
@@ -57,29 +63,41 @@ function isEnemy(player)
     return player.Team ~= LocalPlayer.Team
 end
 
-function getClosestPlayer()
-    local closestPlayer = nil
+function getClosestTargetData()
+    local closestTarget = nil
     local shortestDistance = math.huge
+    local viewport = Camera.ViewportSize
+    local screenCenter = Vector2.new(viewport.X / 2, viewport.Y / 2)
     
     for _, player in pairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and isEnemy(player) then
             local character = player.Character
-            if character and character:FindFirstChild(aimbotPart) then
-                local part = character[aimbotPart]
+            local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+            local part = character and character:FindFirstChild(aimbotPart)
+            local hrp = character and character:FindFirstChild("HumanoidRootPart")
+            if humanoid and humanoid.Health > 0 and part and hrp then
                 local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
-                local distance = (Vector2.new(screenPos.X, screenPos.Y) - Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)).Magnitude
+                local distance = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
                 
                 if onScreen and distance < shortestDistance and distance < aimbotFOV then
                     if not wallCheck or not isWallBetween(part) then
                         shortestDistance = distance
-                        closestPlayer = player
+                        closestTarget = {
+                            player = player,
+                            character = character,
+                            humanoid = humanoid,
+                            part = part,
+                            hrp = hrp,
+                            screenPosition = screenPos,
+                            distanceFromCrosshair = distance
+                        }
                     end
                 end
             end
         end
     end
     
-    return closestPlayer
+    return closestTarget
 end
 
 function isWallBetween(target)
@@ -91,10 +109,8 @@ function isWallBetween(target)
     local origin = Camera.CFrame.Position
     local direction = (target.Position - origin).Unit * 1000
     
-    local raycastParams = RaycastParams.new()
-    raycastParams.FilterDescendantsInstances = {character}
-    raycastParams.FilterType = Enum.RaycastFilterType.Exclude
-    local result = workspace:Raycast(origin, direction, raycastParams)
+    wallCheckParams.FilterDescendantsInstances = {character}
+    local result = workspace:Raycast(origin, direction, wallCheckParams)
     
     if result then
         if result.Instance:IsDescendantOf(target.Parent) then
@@ -106,18 +122,15 @@ function isWallBetween(target)
     return false
 end
 
-function aimbot()
+function aimbot(targetData)
     if not aimbotEnabled then return end
 
-    local closestPlayer = getClosestPlayer()
-    if not closestPlayer or not closestPlayer.Character then return end
-    local character = closestPlayer.Character
-    local targetPart = character:FindFirstChild(aimbotPart)
-    if not targetPart then return end
+    targetData = targetData or currentCombatTarget
+    if not targetData then return end
+    local targetPart = targetData.part
 
     -- Velocity-based prediction for leading the target
-    local hrp = character:FindFirstChild("HumanoidRootPart")
-    local velocity = hrp and hrp.AssemblyLinearVelocity or Vector3.new()
+    local velocity = targetData.hrp and targetData.hrp.AssemblyLinearVelocity or Vector3.new()
     local dist = (Camera.CFrame.Position - targetPart.Position).Magnitude
     local predTime = dist / 800
     local predicted = targetPart.Position + velocity * predTime
@@ -127,12 +140,12 @@ function aimbot()
     Camera.CFrame = Camera.CFrame:Lerp(goalCF, aimbotSmoothness)
 end
 
-function silentAim()
+function silentAim(targetData)
     if not silentAimEnabled then return end
     
-    local closestPlayer = getClosestPlayer()
-    if closestPlayer and closestPlayer.Character and closestPlayer.Character:FindFirstChild(aimbotPart) then
-        local targetPart = closestPlayer.Character[aimbotPart]
+    targetData = targetData or currentCombatTarget
+    if targetData then
+        local targetPart = targetData.part
         local targetPos = Camera:WorldToScreenPoint(targetPart.Position)
         
         if targetPos.Z > 0 then
@@ -144,23 +157,37 @@ function silentAim()
     end
 end
 
-function triggerbot()
+function requestAutoFire(delay)
+    local now = tick()
+    if autoFireActive or now < autoFireCooldownUntil then return false end
+
+    mouse1press()
+    autoFireActive = true
+    autoFireReleaseAt = now + delay
+    autoFireCooldownUntil = autoFireReleaseAt
+    return true
+end
+
+function updateAutoFire()
+    if autoFireActive and tick() >= autoFireReleaseAt then
+        mouse1release()
+        autoFireActive = false
+    end
+end
+
+function triggerbot(targetData)
     if not triggerbotEnabled then return end
     
-    local closestPlayer = getClosestPlayer()
-    
-    if closestPlayer and closestPlayer.Character and closestPlayer.Character:FindFirstChild(aimbotPart) then
-        local targetPart = closestPlayer.Character[aimbotPart]
-        local targetPos = Camera:WorldToScreenPoint(targetPart.Position)
+    targetData = targetData or currentCombatTarget
+    if targetData then
+        local targetPos = targetData.screenPosition or Camera:WorldToScreenPoint(targetData.part.Position)
         
         if targetPos.Z > 0 then
             local mousePos = UserInputService:GetMouseLocation()
             local distance = (Vector2.new(targetPos.X, targetPos.Y) - mousePos).Magnitude
             
             if distance < 50 then
-                mouse1press()
-                wait(triggerbotDelay)
-                mouse1release()
+                requestAutoFire(triggerbotDelay)
             end
         end
     end
@@ -195,21 +222,19 @@ function fly()
     game:GetService("Debris"):AddItem(velocity, 0.1)
 end
 
-function ragebot()
+function ragebot(targetData)
     if not ragebotEnabled then return end
     
-    local closestPlayer = getClosestPlayer()
-    if closestPlayer and closestPlayer.Character and closestPlayer.Character:FindFirstChild(aimbotPart) then
-        local targetPart = closestPlayer.Character[aimbotPart]
+    targetData = targetData or currentCombatTarget
+    if targetData then
+        local targetPart = targetData.part
         
         -- Instant aim at target
         local lookAt = CFrame.new(Camera.CFrame.Position, targetPart.Position)
         Camera.CFrame = lookAt
         
         -- Auto shoot
-        mouse1press()
-        wait(ragebotDelay)
-        mouse1release()
+        requestAutoFire(ragebotDelay)
     end
 end
 
@@ -733,11 +758,17 @@ end)
 
 -- Main Update Loop
 RunService.RenderStepped:Connect(function()
-    aimbot()
-    silentAim()
-    triggerbot()
+    currentCombatTarget = nil
+    if aimbotEnabled or silentAimEnabled or triggerbotEnabled or ragebotEnabled then
+        currentCombatTarget = getClosestTargetData()
+    end
+
+    updateAutoFire()
+    aimbot(currentCombatTarget)
+    silentAim(currentCombatTarget)
+    triggerbot(currentCombatTarget)
     fly()
-    ragebot()
+    ragebot(currentCombatTarget)
     updateESP()
     
     if aiDetectionEnabled then
