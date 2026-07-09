@@ -52,8 +52,6 @@ local equippedSkins = {}
 local aiDetectionEnabled = false
 local aiConfidence = 0.7
 local aiModel = nil
-local wallCheckParams = RaycastParams.new()
-wallCheckParams.FilterType = Enum.RaycastFilterType.Exclude
 
 -- Functions
 function isEnemy(player)
@@ -109,8 +107,10 @@ function isWallBetween(target)
     local origin = Camera.CFrame.Position
     local direction = (target.Position - origin).Unit * 1000
     
-    wallCheckParams.FilterDescendantsInstances = {character}
-    local result = workspace:Raycast(origin, direction, wallCheckParams)
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterDescendantsInstances = {character}
+    raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+    local result = workspace:Raycast(origin, direction, raycastParams)
     
     if result then
         if result.Instance:IsDescendantOf(target.Parent) then
@@ -180,7 +180,7 @@ function triggerbot(targetData)
     
     targetData = targetData or currentCombatTarget
     if targetData then
-        local targetPos = targetData.screenPosition or Camera:WorldToScreenPoint(targetData.part.Position)
+        local targetPos = targetData.screenPosition
         
         if targetPos.Z > 0 then
             local mousePos = UserInputService:GetMouseLocation()
