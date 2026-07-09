@@ -68,7 +68,7 @@ function getClosestPlayer()
             local character = player.Character
             if character and character:FindFirstChild(aimbotPart) then
                 local part = character[aimbotPart]
-                local screenPos, onScreen = Camera:WorldToScreenPoint(part.Position)
+                local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
                 local distance = (Vector2.new(screenPos.X, screenPos.Y) - Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)).Magnitude
                 
                 if onScreen and distance < shortestDistance and distance < aimbotFOV then
