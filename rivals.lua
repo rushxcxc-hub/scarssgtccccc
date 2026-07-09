@@ -49,12 +49,19 @@ local aiConfidence = 0.7
 local aiModel = nil
 
 -- Functions
+function isEnemy(player)
+    if not teamCheck then return true end
+    -- If either player has no team assigned, treat as enemy (cannot determine affiliation)
+    if LocalPlayer.Team == nil or player.Team == nil then return true end
+    return player.Team ~= LocalPlayer.Team
+end
+
 function getClosestPlayer()
     local closestPlayer = nil
     local shortestDistance = math.huge
     
     for _, player in pairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer and (not teamCheck or LocalPlayer.Team == nil or player.Team ~= LocalPlayer.Team) then
+        if player ~= LocalPlayer and isEnemy(player) then
             local character = player.Character
             if character and character:FindFirstChild(aimbotPart) then
                 local part = character[aimbotPart]
@@ -80,7 +87,7 @@ function isWallBetween(target)
     local character = LocalPlayer.Character
     if not character or not character:FindFirstChild("HumanoidRootPart") then return false end
     
-    local origin = character.HumanoidRootPart.Position
+    local origin = Camera.CFrame.Position
     local direction = (target.Position - origin).Unit * 1000
     
     local raycastParams = RaycastParams.new()
@@ -237,16 +244,16 @@ function updateESP()
     end
     
     for _, player in pairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer and (not teamCheck or LocalPlayer.Team == nil or player.Team ~= LocalPlayer.Team) then
+        if player ~= LocalPlayer and isEnemy(player) then
             local character = player.Character
             if character and character:FindFirstChild("HumanoidRootPart") then
                 local humanoid = character:FindFirstChildOfClass("Humanoid")
                 if humanoid and humanoid.Health > 0 then
                     createESP(player)
                     
-                    local rootPart = character.HumanoidRootPart
-                    local size = character:GetExtentsSize()
-                    local pos, onScreen = Camera:WorldToScreenPoint(rootPart.Position)
+                    local bbCF, size = character:GetBoundingBox()
+                    local center = bbCF.Position
+                    local pos, onScreen = Camera:WorldToScreenPoint(center)
                     
                     if onScreen then
                         local box = espBoxes[player]
@@ -254,8 +261,8 @@ function updateESP()
                         local name = espNames[player]
                         
                         -- Update box
-                        local top = Camera:WorldToScreenPoint(rootPart.Position + Vector3.new(0, size.Y/2, 0))
-                        local bottom = Camera:WorldToScreenPoint(rootPart.Position - Vector3.new(0, size.Y/2, 0))
+                        local top = Camera:WorldToScreenPoint(center + Vector3.new(0, size.Y/2, 0))
+                        local bottom = Camera:WorldToScreenPoint(center - Vector3.new(0, size.Y/2, 0))
                         local height = bottom.Y - top.Y
                         local width = height * (size.X / size.Y)
                         
@@ -442,7 +449,7 @@ function initializeAIModel()
             
             -- Check for players in the game
             for _, player in pairs(Players:GetPlayers()) do
-                if player ~= LocalPlayer and (not teamCheck or LocalPlayer.Team == nil or player.Team ~= LocalPlayer.Team) then
+                if player ~= LocalPlayer and isEnemy(player) then
                     local character = player.Character
                     if character and character:FindFirstChild("HumanoidRootPart") then
                         local humanoid = character:FindFirstChildOfClass("Humanoid")
